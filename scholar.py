@@ -521,7 +521,7 @@ class ScholarArticleParser120201(ScholarArticleParser):
 class ScholarArticleParser120726(ScholarArticleParser):
     """
     This class reflects update to the Scholar results page layout that
-    Google made 07/26/12.
+    Google made 07/26/12. 
     """
     def _parse_article(self, div):
         self.article = ScholarArticle()
@@ -823,7 +823,8 @@ class ScholarSettings(object):
     """
     This class lets you adjust the Scholar settings for your
     session. It's intended to mirror the features tunable in the
-    Scholar Settings pane, but right now it's a bit basic.
+    Scholar Settings pane, but right now it's a bit basic. Currently 
+    you may set the number of results per page and citation format.
     """
     CITFORM_NONE = 0
     CITFORM_REFWORKS = 1
@@ -833,10 +834,13 @@ class ScholarSettings(object):
 
     def __init__(self):
         self.citform = 0 # Citation format, default none
+        #this is constrained by gscholar (currently 20)
         self.per_page_results = ScholarConf.MAX_PAGE_RESULTS
+        #will turn true when configured
         self._is_configured = False
 
     def set_citation_format(self, citform):
+        #will ensure that the argument is an integer.
         citform = ScholarUtils.ensure_int(citform)
         if citform < 0 or citform > self.CITFORM_BIBTEX:
             raise FormatError('citation format invalid, is "%s"' \
@@ -846,9 +850,10 @@ class ScholarSettings(object):
 
     def set_per_page_results(self, per_page_results):
         msg = 'page results must be integer'
+        #will ensure that the input is an integer
         self.per_page_results = ScholarUtils.ensure_int(per_page_results, msg)
-        self.per_page_results = min(self.per_page_results,
-                                    ScholarConf.MAX_PAGE_RESULTS)
+        #Number of results per page.
+        self.per_page_results = min(self.per_page_results, ScholarConf.MAX_PAGE_RESULTS)
         self._is_configured = True
 
     def is_configured(self):
@@ -856,7 +861,6 @@ class ScholarSettings(object):
 
 
 class ScholarQuerier(object):
-
     """
     ScholarQuerier instances can conduct a search on Google Scholar
     with subsequent parsing of the resulting HTML content.  The
@@ -865,9 +869,10 @@ class ScholarQuerier(object):
     """
 
     # Default URLs for visiting and submitting Settings pane, as of 3/14
+    # The default URL and such is defined in ClusterScholarQuery
     GET_SETTINGS_URL = ScholarConf.SCHOLAR_SITE + '/scholar_settings?' \
         + 'sciifh=1&hl=en&as_sdt=0,5'
-
+    #construct a query url
     SET_SETTINGS_URL = ScholarConf.SCHOLAR_SITE + '/scholar_setprefs?' \
         + 'q=' \
         + '&scisig=%(scisig)s' \
@@ -892,6 +897,7 @@ class ScholarQuerier(object):
                 self.querier.query['num_results'] = num_results
 
         def handle_article(self, art):
+            #this imports the results from the parser class to this class.
             self.querier.add_article(art)
 
     def __init__(self):
@@ -915,7 +921,7 @@ class ScholarQuerier(object):
 
     def apply_settings(self, settings):
         """
-        Applies settings as provided by a ScholarSettings instance.
+        Applies settings as provided by a ScholarSettings instance if they are.
         """
         if settings is None or not settings.is_configured():
             return True
@@ -958,7 +964,7 @@ class ScholarQuerier(object):
 
         html = self._get_http_response(url=self.SET_SETTINGS_URL % urlargs,
                                        log_msg='dump of settings result HTML',
-                                       err_msg='applying setttings failed')
+                                       err_msg='applying settings failed')
         if html is None:
             return False
 
@@ -968,9 +974,10 @@ class ScholarQuerier(object):
     def send_query(self, query):
         """
         This method initiates a search query (a ScholarQuery instance)
-        with subsequent parsing of the response.
+        with subsequent parsing of the response. Gathers the HTML source code
+        and parses it.
         """
-        self.clear_articles()
+        self.clear_articles()#init all the articles.
         self.query = query
 
         html = self._get_http_response(url=query.get_url(),
@@ -978,7 +985,8 @@ class ScholarQuerier(object):
                                        err_msg='results retrieval failed')
         if html is None:
             return
-
+        #will parse the html. parse method creates a new instance of the PARSER instance 
+        #will inherit the base parser methods and tweaks that were necessary to code. 
         self.parse(html)
 
     def get_citation_data(self, article):
@@ -1006,7 +1014,10 @@ class ScholarQuerier(object):
         """
         This method allows parsing of provided HTML content.
         """
-        parser = self.Parser(self)
+        # Parser class is responsible for parsing the html information.
+        # Here we create a subclass which will parse the html. Here self as argument is 
+        # the querier.
+        parser = self.Parser(self) 
         parser.parse(html)
 
     def add_article(self, art):
@@ -1199,9 +1210,12 @@ scholar.py -c 5 -a "albert einstein" -t --none "quantum theory" --after 1970"""
             print('Cluster ID queries do not allow additional search arguments.')
             return 1
 
+    #Will make the query to gscholar
+    #inits settings, query, articles fields.
     querier = ScholarQuerier()
+    # Generate settings, will create per_page_results and citform fields.
     settings = ScholarSettings()
-
+    # Settings deal with the format, set_citation_format creates the citform field
     if options.citation == 'bt':
         settings.set_citation_format(ScholarSettings.CITFORM_BIBTEX)
     elif options.citation == 'en':
@@ -1213,8 +1227,10 @@ scholar.py -c 5 -a "albert einstein" -t --none "quantum theory" --after 1970"""
     elif options.citation is not None:
         print('Invalid citation link format, must be one of "bt", "en", "rm", or "rw".')
         return 1
-
+    #Will test the applied settings.
     querier.apply_settings(settings)
+
+    #create a query based on the options. QUERY contains 
 
     if options.cluster_id:
         query = ClusterScholarQuery(cluster=options.cluster_id)
@@ -1245,7 +1261,13 @@ scholar.py -c 5 -a "albert einstein" -t --none "quantum theory" --after 1970"""
         options.count = min(options.count, ScholarConf.MAX_PAGE_RESULTS)
         query.set_num_page_results(options.count)
 
+    # make the query, will get the html page and parse it. the parse information will be contained in 
     querier.send_query(query)
+
+    #here based on the value returned in querier.query.num_results
+    # there will be a foor loop that will continue the .send_query opertation with
+    # meaningfull start position values.
+      
 
     if options.csv:
         csv(querier)
